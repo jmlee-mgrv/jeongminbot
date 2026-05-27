@@ -19,16 +19,28 @@ SYSTEM = """당신은 '정민봇'입니다. 기획 전문 AI 에이전트로서 
 항상 한국어로 답변하고, 실용적이고 구체적인 내용을 제공하세요.
 기획서 요청시 반드시 제목, 배경, 목표, 실행계획, 일정, 예산, KPI 항목을 포함하세요."""
 
+# 사용자별 대화 기록 저장 (최대 20개)
+conversation_history = {}
 
-def ask_groq(text):
+
+def ask_groq(user_id, text):
+    if user_id not in conversation_history:
+        conversation_history[user_id] = []
+
+    conversation_history[user_id].append({"role": "user", "content": text})
+
+    # 최대 20개 메시지만 유지
+    if len(conversation_history[user_id]) > 20:
+        conversation_history[user_id] = conversation_history[user_id][-20:]
+
     response = groq_client.chat.completions.create(
         model="llama-3.3-70b-versatile",
-        messages=[
-            {"role": "system", "content": SYSTEM},
-            {"role": "user", "content": text}
-        ]
+        messages=[{"role": "system", "content": SYSTEM}] + conversation_history[user_id]
     )
-    return response.choices[0].message.content
+
+    reply = response.choices[0].message.content
+    conversation_history[user_id].append({"role": "assistant", "content": reply})
+    return reply
 
 
 @app.event("app_mention")
@@ -36,7 +48,7 @@ def handle_mention(event, say):
     user = event["user"]
     text = event["text"]
     say("잠깐만요, 기획안 작성 중... 🤔")
-    say(f"<@{user}>\n\n{ask_groq(text)}")
+    say(f"<@{user}>\n\n{ask_groq(user, text)}")
 
 
 @app.event("message")
@@ -45,9 +57,17 @@ def handle_dm(event, say):
         return
     if event.get("bot_id"):
         return
+    user = event["user"]
     text = event.get("text", "")
+
+    # 대화 초기화 명령어
+    if text.strip() == "대화초기화":
+        conversation_history.pop(user, None)
+        say("대화 기록을 초기화했어요! 새로 시작해요. 👋")
+        return
+
     say("생각 중... 🤔")
-    say(ask_groq(text))
+    say(ask_groq(user, text))
 
 
 if __name__ == "__main__":
