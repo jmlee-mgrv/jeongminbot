@@ -60,10 +60,14 @@ def handle_dm(event, say):
     user = event["user"]
     text = event.get("text", "")
 
-    # 대화 초기화 명령어
+    # 특수 명령어
     if text.strip() == "대화초기화":
         conversation_history.pop(user, None)
         say("대화 기록을 초기화했어요! 새로 시작해요. 👋")
+        return
+
+    if text.strip() == "내 아이디":
+        say(f"슬랙 사용자 ID: `{user}`")
         return
 
     say("생각 중... 🤔")
